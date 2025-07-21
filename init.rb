@@ -16,9 +16,7 @@ RedmineApp::Application.config.after_initialize do
   unless IssueQuery.included_modules.include?(RedmineSlaOla::IssueQueryPatch)
     IssueQuery.include RedmineSlaOla::IssueQueryPatch
   end
-  puts "Patching QueriesHelper..."
   unless QueriesHelper.included_modules.include?(RedmineSlaOla::QueriesHelperPatch)
     QueriesHelper.include RedmineSlaOla::QueriesHelperPatch
-    puts "QueriesHelper Patched"
   end
 end
