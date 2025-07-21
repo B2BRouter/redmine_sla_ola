@@ -5,10 +5,10 @@
 
 ## Installation
 
-   1. Navigate to your Redmine root folder
-      (example: cd /var/www/html/redmine)
+   1. Navigate to your Redmine plugins folder
+      (example: cd /var/www/html/redmine/plugins)
    2. Clone the plugin into the plugins directory
-      git clone https://github.com/noahlio/redmine_sla_ola.git plugins
+      git clone git@github.com:B2BRouter/redmine_sla_ola.git
    3. Run the plugin migrations
       bundle exec rake redmine:plugins:migrate NAME=redmine_sla_ola RAILS_ENV=production
    4. Restart the web server
