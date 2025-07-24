@@ -23,41 +23,47 @@ module RedmineSlaOla
       private
 
       def sql_for_breached_field(_field, operator, value, delay_type)
+        custom_field = CustomField.find_by(name: 'Products')
+        return '1=0' unless custom_field
+
+        user_ids = Setting.plugin_redmine_sla_ola['excluded_journal_user_ids']
+        policy_by_product = LevelAgreementPolicy.where(project_id: project.id)
+                                                .group_by { |p| p.products }.transform_values(&:first)
+        return '1=0' if policy_by_product.empty?
         matched_issue_ids = []
-        policies = LevelAgreementPolicy.all.to_a
-        custom_field_products_id = CustomField.find_by(name: 'Products')&.id
+        unmatched_issue_ids = []
 
-        return '1=0' if custom_field_products_id.nil?
+        Issue.where(project_id: project.id).find_each do |issue|
+          products = issue.custom_values.where(custom_field_id: custom_field.id).pluck(:value).flatten
+          policy = policy_by_product.find { |product_list, _| (product_list & products).any? }&.last
 
-        Issue.where(first_reply: false).find_each do |issue|
-          products = issue.custom_field_value(custom_field_products_id)
-          next unless issue.created_on && products.any?
+          relevant_journal = issue.journals.detect do |journal|
+            !user_ids.include?(journal.user_id) &&
+              journal.notes.present? &&
+              journal.private_notes == false
+          end
 
-          policy = policies.find { |p| (p.products & products).any? }
-          next unless policy && policy.send(delay_type)
+          unless products.any? && (policy && policy.send(delay_type)) && (issue.journals.empty? || relevant_journal.nil?)
+            unmatched_issue_ids << issue.id
+            next
+          end
 
           hours_elapsed = policy.business_time_hours_between(issue.created_on, Time.current)
-          breached = hours_elapsed > policy.send(delay_type)
-
-          matched_issue_ids << issue.id if breached
-        end
-
-        case operator
-        when '='
-          if value.include?('1')
-            return matched_issue_ids.any? ? "issues.id IN (#{matched_issue_ids.uniq.join(',')})" : '1=0'
-          elsif value.include?('0')
-            return matched_issue_ids.any? ? "issues.id NOT IN (#{matched_issue_ids.uniq.join(',')})" : '1=1'
-          end
-        when '!'
-          if value.include?('1')
-            return matched_issue_ids.any? ? "issues.id NOT IN (#{matched_issue_ids.uniq.join(',')})" : '1=1'
-          elsif value.include?('0')
-            return matched_issue_ids.any? ? "issues.id IN (#{matched_issue_ids.uniq.join(',')})" : '1=0'
+          if hours_elapsed > policy.send(delay_type)
+            matched_issue_ids << issue.id
+          else
+            unmatched_issue_ids << issue.id
           end
         end
 
-        '1=0'  # fallback: no matching operator
+        ids =
+          if (operator == '=' && value.include?('1')) || (operator == '!' && value.include?('0'))
+            matched_issue_ids
+          else
+            unmatched_issue_ids
+          end
+
+        ids.any? ? "issues.id IN (#{ids.uniq.join(',')})" : '1=0'
       end
     end
   end

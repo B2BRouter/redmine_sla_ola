@@ -1,0 +1,10 @@
+---
+products_field:
+  type: IssueCustomField
+  name: Products
+  field_format: list
+  possible_values:
+    - product_immediate
+    - product_urgent
+    - product_high
+    - product_normal

@@ -1,0 +1,6 @@
+---
+trackers_003:
+  name: Support request
+  id: 3
+  default_status_id: 1
+  position: 3

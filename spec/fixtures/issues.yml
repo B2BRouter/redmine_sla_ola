@@ -1,0 +1,11 @@
+---
+issue_a:
+  tracker_id: 1
+  project_id: 1
+  subject: a
+  description: issue a
+  status_id: 1
+  priority_id: 2
+  author_id: 1
+  created_on: <%= Time.current - 3.hour %>
+  updated_on: <%= Time.current - 3.hour %>

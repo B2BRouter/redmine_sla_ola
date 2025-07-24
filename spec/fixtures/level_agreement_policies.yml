@@ -1,0 +1,43 @@
+---
+immediate:
+  name: Immediate
+  project_id: 1
+  products:
+    - product_immediate
+  sla_delay: 1
+  ola_delay: 0.5
+  business_hours_start:
+  business_hours_end:
+  business_days: '0,1,2,3,4,5,6'
+
+urgent:
+  name: Urgent
+  project_id: 1
+  products:
+    - product_urgent
+  sla_delay: 6
+  ola_delay: 3
+  business_hours_start: '9:00'
+  business_hours_end: '18:00'
+  business_days: '1,2,3,4,5'
+
+high:
+  name: High
+  project_id: 1
+  products:
+    - product_high
+  sla_delay: 12
+  ola_delay: 6
+  business_hours_start: '9:00'
+  business_hours_end: '18:00'
+  business_days: '1,2,3,4,5'
+
+normal:
+  name: High
+  project_id: 1
+  products:
+    - product_normal
+  ola_delay: 24
+  business_hours_start: '9:00'
+  business_hours_end: '18:00'
+  business_days: '1,2,3,4,5'

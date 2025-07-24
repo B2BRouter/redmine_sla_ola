@@ -1,0 +1,7 @@
+---
+journal_001:
+  journalized: issue_a
+  user: users_001
+  notes: a
+  private_notes: false
+  created_on: <%= Time.current %>

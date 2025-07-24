@@ -1,0 +1,24 @@
+---
+low:
+  name: Low
+  position: 1
+  is_default: false
+  type: IssuePriority
+  active: true
+  position_name: lowest
+
+normal:
+  name: Normal
+  position: 2
+  is_default: true
+  type: IssuePriority
+  active: true
+  position_name: high2
+
+immediate:
+  name: Immediate
+  position: 3
+  is_default: false
+  type: IssuePriority
+  active: true
+  position_name: highest
