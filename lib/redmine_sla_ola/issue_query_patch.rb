@@ -27,44 +27,62 @@ module RedmineSlaOla
         return '1=0' unless custom_field
 
         user_ids = Setting.plugin_redmine_sla_ola['excluded_journal_user_ids']
-        policy_by_product = LevelAgreementPolicy.where(project_id: project.id)
-                                                .group_by { |p| p.products }.transform_values(&:first)
-        return '1=0' if policy_by_product.empty?
-        matched_issue_ids = []
-        unmatched_issue_ids = []
+        policies = LevelAgreementPolicy.where(project_id: project.id)
+        return '1=0' if policies.empty?
 
-        Issue.where(project_id: project.id).find_each do |issue|
-          products = issue.custom_values.where(custom_field_id: custom_field.id).pluck(:value).flatten
-          policy = policy_by_product.find { |product_list, _| (product_list & products).any? }&.last
-
-          relevant_journal = issue.journals.detect do |journal|
-            !user_ids.include?(journal.user_id) &&
-              journal.notes.present? &&
-              journal.private_notes == false
-          end
-
-          unless products.any? && (policy && policy.send(delay_type)) && (issue.journals.empty? || relevant_journal.nil?)
-            unmatched_issue_ids << issue.id
-            next
-          end
-
-          hours_elapsed = policy.business_time_hours_between(issue.created_on, Time.current)
-          if hours_elapsed > policy.send(delay_type)
-            matched_issue_ids << issue.id
-          else
-            unmatched_issue_ids << issue.id
+        policy_by_product = {}
+        policies.each do |p|
+          p.products.each do |product|
+            policy_by_product[product] ||= p
           end
         end
 
-        ids =
+        matched_ids = []
+        unmatched_ids = []
+
+        Issue.includes(:custom_values, :journals).where(project_id: project.id).find_in_batches(batch_size: 500) do |issues|
+          issues.each do |issue|
+            product_values = issue.custom_values.select { |cv| cv.custom_field_id == custom_field.id }.map(&:value).flatten
+            product_values = [product_values].flatten.compact
+
+            policy = product_values.map { |p| policy_by_product[p] }.compact.first
+            unless policy&.send(delay_type)
+              unmatched_ids << issue.id
+              next
+            end
+
+            relevant_journal = issue.journals
+                                    .where.not(user_id: user_ids)
+                                    .where.not(notes: [nil, ''])
+                                    .where(private_notes: false)
+                                    .limit(1)
+                                    .first
+
+            unless product_values.any? && policy&.send(delay_type) && (issue.journals.empty? || relevant_journal.nil?)
+              unmatched_ids << issue.id
+              next
+            end
+
+            hours_elapsed = policy.business_time_hours_between(issue.created_on, Time.current)
+            if hours_elapsed > policy.send(delay_type)
+              matched_ids << issue.id
+            else
+              unmatched_ids << issue.id
+            end
+          end
+        end
+
+        filtered_ids =
           if (operator == '=' && value.include?('1')) || (operator == '!' && value.include?('0'))
-            matched_issue_ids
+            matched_ids
           else
-            unmatched_issue_ids
+            unmatched_ids
           end
 
-        ids.any? ? "issues.id IN (#{ids.uniq.join(',')})" : '1=0'
+        filtered_ids.uniq!
+        filtered_ids.any? ? "issues.id IN (#{filtered_ids.join(',')})" : '1=0'
       end
+
     end
   end
 end

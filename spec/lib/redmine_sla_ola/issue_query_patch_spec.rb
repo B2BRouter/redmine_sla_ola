@@ -42,7 +42,7 @@ RSpec.describe RedmineSlaOla::IssueQueryPatch do
           expect(sql).to include(issue.id.to_s)
         end
 
-        it 'does not include issue as not breached (!)' do
+        it 'does not include issue as not breached' do
           sql = query.sql_for_sla_breached_field('sla_breached', '!', ['1'])
           expect(sql).to eq(query.sql_for_sla_breached_field('sla_breached', '=', ['0']))
           expect(sql).not_to include(issue.id.to_s)

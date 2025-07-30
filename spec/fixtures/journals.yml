@@ -4,4 +4,4 @@ journal_001:
   user: users_001
   notes: a
   private_notes: false
-  created_on: <%= Time.current %>
+  created_on: 2025-07-24 17:00:00
