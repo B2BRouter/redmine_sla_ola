@@ -26,63 +26,81 @@ module RedmineSlaOla
         custom_field = CustomField.find_by(name: 'Products')
         return '1=0' unless custom_field
 
-        user_ids = Setting.plugin_redmine_sla_ola['excluded_journal_user_ids']
-        policies = LevelAgreementPolicy.where(project_id: project.id)
-        return '1=0' if policies.empty?
-
-        policy_by_product = {}
-        policies.each do |p|
-          p.products.each do |product|
-            policy_by_product[product] ||= p
-          end
-        end
-
-        matched_ids = []
-        unmatched_ids = []
-
-        Issue.includes(:custom_values, :journals).where(project_id: project.id).find_in_batches(batch_size: 500) do |issues|
-          issues.each do |issue|
-            product_values = issue.custom_values.select { |cv| cv.custom_field_id == custom_field.id }.map(&:value).flatten
-            product_values = [product_values].flatten.compact
-
-            policy = product_values.map { |p| policy_by_product[p] }.compact.first
-            unless policy&.send(delay_type)
-              unmatched_ids << issue.id
-              next
-            end
-
-            relevant_journal = issue.journals
-                                    .where.not(user_id: user_ids)
-                                    .where.not(notes: [nil, ''])
-                                    .where(private_notes: false)
-                                    .limit(1)
-                                    .first
-
-            unless product_values.any? && policy&.send(delay_type) && (issue.journals.empty? || relevant_journal.nil?)
-              unmatched_ids << issue.id
-              next
-            end
-
-            hours_elapsed = policy.business_time_hours_between(issue.created_on, Time.current)
-            if hours_elapsed > policy.send(delay_type)
-              matched_ids << issue.id
-            else
-              unmatched_ids << issue.id
-            end
-          end
-        end
-
-        filtered_ids =
-          if (operator == '=' && value.include?('1')) || (operator == '!' && value.include?('0'))
-            matched_ids
+        excluded_user_ids = Array(Setting.plugin_redmine_sla_ola['excluded_journal_user_ids']).map(&:to_i)
+        excluded_user_condition =
+          if excluded_user_ids.any?
+            "AND j.user_id NOT IN (#{excluded_user_ids.join(',')})"
           else
-            unmatched_ids
+            ""
           end
 
-        filtered_ids.uniq!
-        filtered_ids.any? ? "issues.id IN (#{filtered_ids.join(',')})" : '1=0'
-      end
+        delay_column = delay_type == :sla_delay ? 'sla_delay' : 'ola_delay'
 
+        breached_sql = <<~SQL
+          issues.id IN (
+            SELECT issues.id FROM issues
+            INNER JOIN custom_values cv ON cv.customized_type = 'Issue'
+              AND cv.customized_id = issues.id
+              AND cv.custom_field_id = #{custom_field.id}
+            INNER JOIN level_agreement_policies policies ON policies.project_id = issues.project_id
+              AND policies.products LIKE CONCAT('%- ', cv.value, '%')
+            WHERE (
+              CASE
+                WHEN policies.business_hours_start IS NULL OR policies.business_hours_end IS NULL OR policies.business_days IS NULL THEN
+                  TIMESTAMPDIFF(
+                    SECOND,
+                    issues.created_on,
+                    COALESCE(
+                      (
+                        SELECT MIN(j.created_on) FROM journals j
+                        WHERE j.journalized_type = 'Issue'
+                          AND j.journalized_id = issues.id
+                          #{excluded_user_condition}
+                          AND j.private_notes = false
+                          AND j.notes IS NOT NULL AND j.notes != ''
+                      ),
+                      CURRENT_TIMESTAMP
+                    )
+                  ) / 3600.0
+                ELSE
+                  working_hours_between(
+                    issues.created_on,
+                    COALESCE(
+                      (
+                        SELECT MIN(j.created_on) FROM journals j
+                        WHERE j.journalized_type = 'Issue'
+                          AND j.journalized_id = issues.id
+                          #{excluded_user_condition}
+                          AND j.private_notes = false
+                          AND j.notes IS NOT NULL AND j.notes != ''
+                      ),
+                      CURRENT_TIMESTAMP
+                    ),
+                    policies.business_hours_start,
+                    policies.business_hours_end,
+                    policies.business_days
+                  )
+              END
+            ) >= policies.#{delay_column}
+          )
+        SQL
+
+        def extract_subquery_body(sql_in_clause)
+          sql_in_clause.strip[/\Aissues\.id IN \((.*)\)\z/m, 1]
+        end
+
+        not_breached_sql = <<~SQL
+          issues.id NOT IN (
+            #{extract_subquery_body(breached_sql)}
+          )
+        SQL
+
+        if (operator == '=' && value.include?('1')) || (operator == '!' && value.include?('0'))
+          breached_sql.strip
+        else
+          not_breached_sql.strip
+        end
+      end
     end
   end
 end

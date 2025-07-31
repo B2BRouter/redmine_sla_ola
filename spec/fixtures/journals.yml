@@ -1,7 +1,7 @@
 ---
 journal_001:
-  journalized: issue_a
-  user: users_001
+  journalized: issue_a (Issue)
+  user_id: 1
   notes: a
   private_notes: false
-  created_on: 2025-07-24 17:00:00
+  created_on: 2025-07-24 17:00:00 +02:00

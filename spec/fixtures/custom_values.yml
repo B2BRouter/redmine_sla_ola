@@ -1,6 +1,5 @@
 ---
 issue_a_products:
-  customized_type: Issue
-  customized: issue_a
+  customized: issue_a (Issue)
   custom_field: products_field
-  value: product_high
+  value: product_immediate
