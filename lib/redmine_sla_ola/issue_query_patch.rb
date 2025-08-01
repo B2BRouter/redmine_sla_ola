@@ -39,12 +39,13 @@ module RedmineSlaOla
         breached_sql = <<~SQL
           issues.id IN (
             SELECT issues.id FROM issues
+            INNER JOIN issue_statuses ON issue_statuses.id = issues.status_id
             INNER JOIN custom_values cv ON cv.customized_type = 'Issue'
               AND cv.customized_id = issues.id
               AND cv.custom_field_id = #{custom_field.id}
             INNER JOIN level_agreement_policies policies ON policies.project_id = issues.project_id
               AND policies.products LIKE CONCAT('%- ', cv.value, '%')
-            WHERE (
+            WHERE issue_statuses.is_closed = false AND (
               CASE
                 WHEN policies.business_hours_start IS NULL OR policies.business_hours_end IS NULL OR policies.business_days IS NULL THEN
                   TIMESTAMPDIFF(
