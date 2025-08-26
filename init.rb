@@ -13,6 +13,12 @@ end
 require File.expand_path('lib/redmine_sla_ola', __dir__)
 
 RedmineApp::Application.config.after_initialize do
+  unless Issue.included_modules.include?(RedmineSlaOla::IssueSlaOlaPatch)
+    Issue.include RedmineSlaOla::IssueSlaOlaPatch
+  end
+  unless Journal.included_modules.include?(RedmineSlaOla::JounalSlaOlaPatch)
+    Journal.include RedmineSlaOla::JounalSlaOlaPatch
+  end
   unless IssueQuery.included_modules.include?(RedmineSlaOla::IssueQueryPatch)
     IssueQuery.include RedmineSlaOla::IssueQueryPatch
   end
